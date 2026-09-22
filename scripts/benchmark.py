@@ -8,22 +8,24 @@ import argparse
 import asyncio
 import json
 import platform
+import ssl
 import time
 import uuid
 from collections import Counter
 from pathlib import Path
 
 import aiohttp
+import certifi
 
 
 async def run(args):
-    latencies, statuses = [], Counter()
+    latencies, statuses, transport_errors = [], Counter(), Counter()
     roundtrip_ok = 0
     run_id = uuid.uuid4().hex
     queue = asyncio.Queue()
     for i in range(args.pairs):
         queue.put_nowait(i)
-    connector = aiohttp.TCPConnector(limit=args.concurrency)
+    connector = aiohttp.TCPConnector(limit=args.concurrency, ssl=ssl.create_default_context(cafile=certifi.where()))
     async with aiohttp.ClientSession(base_url=args.url, connector=connector,
                                      timeout=aiohttp.ClientTimeout(total=10),
                                      json_serialize=lambda value: json.dumps(value, ensure_ascii=False)) as client:
@@ -33,8 +35,9 @@ async def run(args):
                 async with client.post("/process", json={"payload": payload, "payload_id": payload_id}) as response:
                     statuses[str(response.status)] += 1
                     return (await response.json()).get("result") if response.status == 200 else None
-            except (aiohttp.ClientError, TimeoutError, ValueError):
+            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
                 statuses["transport_error"] += 1
+                transport_errors[type(exc).__name__] += 1
                 return None
             finally:
                 latencies.append((time.perf_counter() - start) * 1000)
@@ -56,11 +59,14 @@ async def run(args):
     ordered = sorted(latencies)
     def percentile(p):
         return round(ordered[min(int((len(ordered) - 1) * p), len(ordered) - 1)], 2)
-    result = {"kind": "local real HTTP; closed-loop; generator and server share hardware",
+    result = {"kind": "real HTTP; closed-loop; server hardware is not inferred from client hardware",
+              "server_url": args.url,
               "generator": "aiohttp + uvloop (when available)",
               "machine": platform.machine(), "unique_inputs": args.unique, "concurrency": args.concurrency,
-              "pairs_requested": args.pairs, "requests_completed": len(latencies), "seconds": round(elapsed, 3),
-              "rps": round(len(latencies) / elapsed, 1), "statuses": dict(statuses),
+              "pairs_requested": args.pairs, "requests_attempted": len(latencies),
+              "requests_completed": sum(v for k, v in statuses.items() if k.isdigit()), "seconds": round(elapsed, 3),
+              "rps": round(sum(v for k, v in statuses.items() if k.isdigit()) / elapsed, 1),
+              "statuses": dict(statuses), "transport_errors": dict(transport_errors),
               "latency_ms": {"p50": percentile(.5), "p95": percentile(.95), "p99": percentile(.99), "max": round(max(ordered), 2)},
               "exact_and_masked_roundtrip_pairs": roundtrip_ok}
     path = Path(args.output)
