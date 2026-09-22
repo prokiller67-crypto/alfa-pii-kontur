@@ -64,5 +64,6 @@ def test_vercel_cannot_start_with_process_local_state(monkeypatch):
     monkeypatch.setenv("VERCEL", "1")
     monkeypatch.delenv("PII_REDIS_URL", raising=False)
     monkeypatch.delenv("UPSTASH_REDIS_REST_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     with pytest.raises(ValueError, match="shared_store_required_on_vercel"), TestClient(create_app()):
         pass

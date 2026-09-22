@@ -101,15 +101,19 @@ def create_app(processor: Processor | None = None, *, policies: dict | None = No
         if app.state.processor is None:
             redis_url = os.environ.get("PII_REDIS_URL")
             upstash_url = os.environ.get("UPSTASH_REDIS_REST_URL")
+            database_url = os.environ.get("DATABASE_URL")
             if redis_url:
                 store = RedisStore(redis_url)
+            elif database_url:
+                from .postgres import PostgresStore
+                store = PostgresStore(database_url)
             elif upstash_url:
                 store = UpstashStore(upstash_url, os.environ.get("UPSTASH_REDIS_REST_TOKEN", ""))
             elif os.environ.get("VERCEL"):
                 raise ValueError("shared_store_required_on_vercel")
             else:
                 store = MemoryStore()
-            vault = Vault(store, load_key(required=bool(redis_url or upstash_url) or checker_mode),
+            vault = Vault(store, load_key(required=bool(redis_url or upstash_url or database_url) or checker_mode),
                           ttl=int(os.environ.get("PII_TTL_SECONDS", "1800")))
             detector = Detector(use_ner=os.environ.get("PII_NER", "1") == "1")
             app.state.processor = Processor(detector, vault)
