@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictStr
 
 from .detector import Detector, Kind
 from .service import Policy, Processor, ServiceError
-from .vault import CapacityError, MemoryStore, RedisStore, Vault, load_key
+from .vault import CapacityError, MemoryStore, RedisStore, UpstashStore, Vault, load_key
 
 logger = logging.getLogger("pii_proxy.audit")
 
@@ -100,8 +100,16 @@ def create_app(processor: Processor | None = None, *, policies: dict | None = No
             logger.propagate = False
         if app.state.processor is None:
             redis_url = os.environ.get("PII_REDIS_URL")
-            store = RedisStore(redis_url) if redis_url else MemoryStore()
-            vault = Vault(store, load_key(required=bool(redis_url) or checker_mode),
+            upstash_url = os.environ.get("UPSTASH_REDIS_REST_URL")
+            if redis_url:
+                store = RedisStore(redis_url)
+            elif upstash_url:
+                store = UpstashStore(upstash_url, os.environ.get("UPSTASH_REDIS_REST_TOKEN", ""))
+            elif os.environ.get("VERCEL"):
+                raise ValueError("shared_store_required_on_vercel")
+            else:
+                store = MemoryStore()
+            vault = Vault(store, load_key(required=bool(redis_url or upstash_url) or checker_mode),
                           ttl=int(os.environ.get("PII_TTL_SECONDS", "1800")))
             detector = Detector(use_ner=os.environ.get("PII_NER", "1") == "1")
             app.state.processor = Processor(detector, vault)

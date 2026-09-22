@@ -1,0 +1,17 @@
+.git/
+.venv/
+.vercel/
+.env
+.env.*
+artifacts/
+docs/
+tests/
+benchmarks/
+scripts/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.zip
+*.key
+.DS_Store

@@ -11,6 +11,7 @@ import json
 import os
 import time
 from typing import Protocol
+from urllib.parse import urlsplit
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -90,6 +91,62 @@ class RedisStore:
 
     async def ping(self) -> bool:
         return bool(await self.client.ping())
+
+    async def close(self) -> None:
+        await self.client.aclose()
+
+
+class UpstashStore:
+    """Shared Redis state over HTTPS. Only AES-GCM ciphertext leaves the vault."""
+
+    def __init__(self, url: str, token: str, *, transport=None):
+        import httpx
+
+        parsed = urlsplit(url)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username
+                or parsed.password or parsed.query or parsed.fragment or not token):
+            raise ValueError("invalid_upstash_configuration")
+        self.url = url.rstrip("/")
+        self.client = httpx.AsyncClient(
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=httpx.Timeout(2.0, connect=1.0),
+            limits=httpx.Limits(max_connections=128, max_keepalive_connections=64),
+            transport=transport,
+        )
+
+    async def _command(self, *command):
+        response = await self.client.post(self.url, json=list(command))
+        if response.status_code == 429:
+            raise CapacityError
+        response.raise_for_status()
+        body = response.json()
+        if not isinstance(body, dict):
+            raise ValueError("invalid_upstash_response")
+        if body.get("error"):
+            error = str(body["error"]).lower()
+            if any(word in error for word in ("oom", "quota", "limit", "capacity")):
+                raise CapacityError
+            raise ValueError("upstash_command_failed")
+        if "result" not in body:
+            raise ValueError("invalid_upstash_response")
+        return body["result"]
+
+    async def get(self, key: str) -> bytes | None:
+        value = await self._command("GET", key)
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("invalid_upstash_value")
+        return base64.b64decode(value, validate=True)
+
+    async def put_if_absent(self, key: str, value: bytes, ttl: int) -> bool:
+        result = await self._command("SET", key, base64.b64encode(value).decode("ascii"), "NX", "EX", ttl)
+        if result not in (None, "OK"):
+            raise ValueError("invalid_upstash_write_response")
+        return result == "OK"
+
+    async def ping(self) -> bool:
+        return await self._command("PING") == "PONG"
 
     async def close(self) -> None:
         await self.client.aclose()
