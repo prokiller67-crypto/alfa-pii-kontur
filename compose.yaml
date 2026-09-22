@@ -1,0 +1,42 @@
+services:
+  proxy:
+    build: .
+    ports:
+      - "127.0.0.1:${PII_BIND_PORT:-8091}:8090"
+    environment:
+      PII_REDIS_URL: redis://redis:6379/0
+      PII_MASTER_KEY: ${PII_MASTER_KEY:?Generate a key in .env before starting}
+      PII_LOCAL_DEMO: "0"
+      PII_CHECKER_MODE: ${PII_CHECKER_MODE:-0}
+      PII_CHECKER_MASK: ${PII_CHECKER_MASK:-shape}
+      PII_POLICIES_FILE: /app/config/policies.json
+      SUPPORT_API_KEY: ${SUPPORT_API_KEY:-}
+      ANALYTICS_API_KEY: ${ANALYTICS_API_KEY:-}
+    volumes:
+      - ./config/policies.example.json:/app/config/policies.json:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction"]
+    # Internal Docker network only. Encrypted mappings expire; persistence is intentionally disabled.
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 10

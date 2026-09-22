@@ -1,0 +1,22 @@
+{
+  "support": {
+    "api_key_env": "SUPPORT_API_KEY",
+    "enabled": true,
+    "mode": "token",
+    "restore": true,
+    "min_types": 1
+  },
+  "analytics": {
+    "api_key_env": "ANALYTICS_API_KEY",
+    "enabled": true,
+    "mode": "shape",
+    "restore": false,
+    "types": ["PERSON", "EMAIL", "PHONE", "PASSPORT", "ADDRESS"]
+  },
+  "conditional-demo": {
+    "api_key_env": "CONDITIONAL_API_KEY",
+    "enabled": false,
+    "mode": "token",
+    "requires": {"PIN": ["CARD"]}
+  }
+}
