@@ -1,0 +1,42 @@
+{
+  "method": "open-loop pair arrivals at rate/2; restore follows mask; no retries",
+  "data": "six rotating synthetic templates with unique text and IDs; NOT organizer corpus",
+  "server_url": "https://195.209.210.68",
+  "target_http_rps": 1000.0,
+  "target_seconds": 300.0,
+  "max_inflight_pairs": 1024,
+  "abort_reason": "five_consecutive_invalid_responses",
+  "injection_seconds": 2.241,
+  "total_seconds_with_drain": 6.994,
+  "counters": {
+    "arrivals": 634,
+    "pairs_started": 634,
+    "requests_attempted": 949,
+    "http_success": 538,
+    "expected_mask_presence": 315,
+    "exact_pairs": 223,
+    "request_errors": 411
+  },
+  "statuses": {
+    "200": 538,
+    "503": 1,
+    "ClientConnectorError": 197,
+    "ServerDisconnectedError": 20,
+    "500": 30,
+    "429": 163
+  },
+  "successful_rps_with_drain": 76.92,
+  "request_latency_ms": {
+    "p50": 1137.434,
+    "p95": 4969.648,
+    "p99": 5094.238,
+    "max": 5669.805
+  },
+  "scheduler_lag_ms": {
+    "p50": 33.788,
+    "p95": 477.49,
+    "p99": 517.837,
+    "max": 975.215
+  },
+  "clean_target_run": false
+}

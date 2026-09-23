@@ -1,0 +1,36 @@
+{
+  "/healthz": {
+    "status": 200,
+    "final_url": "https://195.209.210.68/healthz"
+  },
+  "/readyz": {
+    "status": 200,
+    "final_url": "https://195.209.210.68/readyz"
+  },
+  "/metrics": {
+    "status": 401
+  },
+  "/docs": {
+    "status": 200,
+    "final_url": "https://195.209.210.68/docs"
+  },
+  "/process": {
+    "status": 405
+  },
+  "/": {
+    "status": 200,
+    "final_url": "https://195.209.210.68/docs"
+  },
+  "contract": {
+    "statuses": [
+      200,
+      200,
+      200,
+      200
+    ],
+    "expected_mask": true,
+    "restore": true,
+    "mask_retry": true,
+    "restore_retry": true
+  }
+}

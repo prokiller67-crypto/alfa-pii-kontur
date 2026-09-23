@@ -1,0 +1,36 @@
+{
+  "method": "open-loop pair arrivals at rate/2; restore follows mask; no retries",
+  "data": "six rotating synthetic templates with unique text and IDs; NOT organizer corpus",
+  "server_url": "https://195.209.210.68",
+  "target_http_rps": 100.0,
+  "target_seconds": 300.0,
+  "max_inflight_pairs": 1024,
+  "abort_reason": null,
+  "injection_seconds": 299.981,
+  "total_seconds_with_drain": 300.303,
+  "counters": {
+    "arrivals": 15000,
+    "pairs_started": 15000,
+    "requests_attempted": 30000,
+    "http_success": 30000,
+    "expected_mask_presence": 15000,
+    "exact_pairs": 15000
+  },
+  "statuses": {
+    "200": 30000
+  },
+  "successful_rps_with_drain": 99.9,
+  "request_latency_ms": {
+    "p50": 157.301,
+    "p95": 175.138,
+    "p99": 343.33,
+    "max": 1209.519
+  },
+  "scheduler_lag_ms": {
+    "p50": 0.343,
+    "p95": 1.105,
+    "p99": 1.558,
+    "max": 19.837
+  },
+  "clean_target_run": true
+}

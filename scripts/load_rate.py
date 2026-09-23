@@ -84,12 +84,13 @@ async def run(args):
                 abort_reason = abort_reason or "fifty_invalid_responses"
             return None
 
-        async def pair(index, scheduled):
+        async def pair(index, scheduled, *, warming=False):
             scheduler_lags.append(max(0, time.perf_counter() - scheduled) * 1000)
             template = TEMPLATES[index % len(TEMPLATES)]
             text_index = index if args.text_mode == "unique" else index % len(TEMPLATES)
             text = f"Тест {text_index}. " + template.format(i=text_index)
-            payload_id = f"load-{run_id}-{index}"
+            phase = "warmup" if warming else "measurement"
+            payload_id = f"load-{run_id}-{phase}-{index}"
             masked = await post(text, payload_id)
             if masked is None:
                 return
@@ -102,7 +103,7 @@ async def run(args):
                 counters["wrong_restore"] += 1
 
         if args.warmup_pairs:
-            await asyncio.gather(*(pair(i, time.perf_counter()) for i in range(args.warmup_pairs)))
+            await asyncio.gather(*(pair(i, time.perf_counter(), warming=True) for i in range(args.warmup_pairs)))
             warmup = {"pairs": args.warmup_pairs, "counters": dict(counters),
                       "statuses": dict(statuses), "seconds": time.perf_counter() - start}
             if counters["exact_pairs"] != args.warmup_pairs:

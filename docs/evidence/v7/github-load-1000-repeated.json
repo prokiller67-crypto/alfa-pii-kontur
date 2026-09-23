@@ -1,0 +1,41 @@
+{
+  "method": "open-loop pair arrivals at rate/2; restore follows mask; no retries",
+  "data": "six rotating synthetic templates; NOT organizer corpus",
+  "text_mode": "repeated",
+  "unique_payload_ids": true,
+  "server_url": "https://195.209.210.68",
+  "target_http_rps": 1000.0,
+  "target_seconds": 300.0,
+  "max_inflight_pairs": 1024,
+  "abort_reason": "five_consecutive_invalid_responses",
+  "injection_seconds": 2.331,
+  "total_seconds_with_drain": 3.71,
+  "counters": {
+    "arrivals": 529,
+    "pairs_started": 529,
+    "requests_attempted": 1053,
+    "http_success": 971,
+    "expected_mask_presence": 524,
+    "exact_pairs": 447,
+    "request_errors": 82
+  },
+  "statuses": {
+    "200": 971,
+    "ClientOSError": 41,
+    "ServerDisconnectedError": 41
+  },
+  "successful_rps_with_drain": 261.7,
+  "request_latency_ms": {
+    "p50": 991.996,
+    "p95": 2375.683,
+    "p99": 2518.119,
+    "max": 2575.284
+  },
+  "scheduler_lag_ms": {
+    "p50": 86.955,
+    "p95": 302.652,
+    "p99": 959.102,
+    "max": 1274.323
+  },
+  "clean_target_run": false
+}

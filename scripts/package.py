@@ -8,8 +8,9 @@ out = root / "artifacts/alfa-pii-source.zip"
 out.parent.mkdir(exist_ok=True)
 files = [root / p for p in ("README.md", "pyproject.toml", "uv.lock", "Dockerfile", "compose.yaml", ".dockerignore", ".gitignore", "app.py", "vercel.json", ".vercelignore")]
 for directory, extensions in {"src": {".py", ".html"}, "tests": {".py"}, "scripts": {".py"},
-                              "benchmarks": {".py"}, "config": {".json"}, "docs": {".md", ".yaml"},
-                              "migrations": {".sql"}, "ops": {".yaml", ".conf"}}.items():
+                              "benchmarks": {".py"}, "config": {".json"}, "docs": {".md", ".yaml", ".json"},
+                              "migrations": {".sql"}, "ops": {".yaml", ".conf"},
+                              ".github": {".yaml", ".yml"}}.items():
     files += [p for p in (root / directory).rglob("*") if p.is_file() and p.suffix in extensions]
 with ZipFile(out, "w", ZIP_DEFLATED) as archive:
     for path in sorted(set(files)):
