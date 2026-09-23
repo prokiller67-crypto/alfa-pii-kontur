@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 from dataclasses import replace
 
@@ -51,6 +52,22 @@ def test_checker_mask_matches_onboarding_example(processor, monkeypatch):
         restored = checker.post("/process", json={**body, "payload": expected})
         assert restored.status_code == 200
         assert restored.json() == {"result": original}
+
+
+def test_checker_starts_with_its_own_processor(monkeypatch):
+    monkeypatch.setenv("PII_CHECKER_MODE", "1")
+    monkeypatch.setenv("PII_MASTER_KEY", base64.urlsafe_b64encode(b"t" * 32).decode())
+    monkeypatch.setenv("PII_NER", "0")
+    for name in ("PII_REDIS_URL", "DATABASE_URL", "UPSTASH_REDIS_REST_URL", "VERCEL"):
+        monkeypatch.delenv(name, raising=False)
+    with TestClient(create_app(policies={}, local_demo=False)) as checker:
+        assert checker.get("/readyz").json() == {"status": "ready"}
+        body = {"payload": "Email: contact@example.org", "payload_id": "auto-start"}
+        masked = checker.post("/process", json=body)
+        assert masked.status_code == 200
+        assert masked.json() == {"result": "Email: *******@*******.***"}
+        restored = checker.post("/process", json={**body, "payload": masked.json()["result"]})
+        assert restored.json() == {"result": body["payload"]}
 
 
 @pytest.mark.parametrize("original", ["", "Ничего секретного: сумма 350 рублей.", "😀\nEmail: TEST+hello@example.org\t!", "Паспорт: серия 45 09 номер 123456\n"])
