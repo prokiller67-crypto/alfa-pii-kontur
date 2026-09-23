@@ -17,6 +17,29 @@ class Replacement:
     masked: str
 
 
+def _shape_mask(original: str, kind: Kind) -> str:
+    """Keep punctuation and the field words inside document spans."""
+    is_sensitive = str.isdigit if kind == Kind.PASSPORT else str.isalnum
+    chars = ["*" if is_sensitive(char) else char for char in original]
+    if kind == Kind.DRIVER_LICENSE:
+        for label in re.finditer(r"\bномер\b", original, flags=re.IGNORECASE):
+            chars[label.start():label.end()] = original[label.start():label.end()]
+    return "".join(chars)
+
+
+def _mask_fragment(original: str, kind: Kind, mode: str) -> str:
+    if mode == "partial" and kind in {Kind.PERSON, Kind.CARDHOLDER}:
+        return " ".join(part[0] + "." for part in original.split())
+    masked = _shape_mask(original, kind)
+    if mode == "partial" and kind in {Kind.PASSPORT, Kind.CARD, Kind.PHONE}:
+        indices = [index for index, char in enumerate(original) if char.isdigit()]
+        chars = list(masked)
+        for index in indices[:2] + indices[-2:]:
+            chars[index] = original[index]
+        return "".join(chars)
+    return masked
+
+
 def mask(text: str, spans: tuple[Span, ...], mode: str = "shape") -> tuple[str, list[dict]]:
     pieces: list[str] = []
     replacements: list[dict] = []
@@ -31,23 +54,8 @@ def mask(text: str, spans: tuple[Span, ...], mode: str = "shape") -> tuple[str, 
         original = text[span.start:span.end]
         if mode == "token":
             masked = tokens.setdefault((span.kind, original), f"⟦{span.kind}:{namespace}:{i + 1}⟧")
-        elif mode == "partial" and span.kind in {Kind.PERSON, Kind.CARDHOLDER}:
-            masked = " ".join(part[0] + "." for part in original.split())
         else:
-            # Preserve punctuation and field words inside numeric document spans.
-            numeric = span.kind == Kind.PASSPORT
-            masked = "".join("*" if (c.isdigit() if numeric else c.isalnum()) else c for c in original)
-            if span.kind == Kind.DRIVER_LICENSE:
-                chars = list(masked)
-                for label in re.finditer(r"\bномер\b", original, flags=re.IGNORECASE):
-                    chars[label.start():label.end()] = original[label.start():label.end()]
-                masked = "".join(chars)
-            if mode == "partial" and span.kind in {Kind.PASSPORT, Kind.CARD, Kind.PHONE}:
-                indices = [i for i, c in enumerate(original) if c.isdigit()]
-                chars = list(masked)
-                for idx in indices[:2] + indices[-2:]:
-                    chars[idx] = original[idx]
-                masked = "".join(chars)
+            masked = _mask_fragment(original, span.kind, mode)
         pieces.append(masked)
         replacements.append(asdict(Replacement(masked_position, masked_position + len(masked), original, masked)))
         masked_position += len(masked)
