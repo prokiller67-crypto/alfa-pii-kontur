@@ -5,7 +5,7 @@
 - API: `https://alfa-pii-kontur.vercel.app/process`, метод POST.
 - Vercel project: `alfa-pii-kontur`, план **Hobby**, регион **iad1**.
 - База: **Neon Free**, ресурс `alfa-pii-state`, регион **iad1**, принадлежит аккаунту.
-- Код API: commit `fd9c7a9`; deployment `dpl_EopEUWp33LWkjAZYgzw4dnrwHTdc`.
+- Код API: commit `56f5cbf7082f6e418db93491527d29cfb3a6ee1c`; deployment `dpl_6ghb8ZMTCrdMMgwuyhWDQ9C86Tph`.
 - Python 3.12, FastAPI, Natasha, psycopg; PostgreSQL используется через pooler.
 - API и модель выполняются на Vercel. В PostgreSQL передаются HMAC-ключ и AES-GCM ciphertext.
 
