@@ -9,6 +9,12 @@ on:
         required: true
         default: '100'
         options: ['100', '150', '1000']
+      text_mode:
+        description: Unique inputs or six repeated texts (cache upper-bound diagnostic)
+        type: choice
+        required: true
+        default: unique
+        options: [unique, repeated]
 
 permissions:
   contents: read
@@ -25,6 +31,7 @@ jobs:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
       AUDIT_RATE: ${{ inputs.rate }}
+      TEXT_MODE: ${{ inputs.text_mode }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -43,12 +50,13 @@ jobs:
         run: >-
           uv run python scripts/load_rate.py --url https://195.209.210.68
           --rate "$AUDIT_RATE" --seconds 300 --max-inflight 1024
+          --text-mode "$TEXT_MODE"
           --output artifacts/load.json
       - name: Preserve results including unsuccessful runs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: public-api-audit-${{ inputs.rate }}
+          name: public-api-audit-${{ inputs.rate }}-${{ inputs.text_mode }}
           path: artifacts/*.json
           retention-days: 7
           if-no-files-found: error

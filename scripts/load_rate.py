@@ -86,7 +86,8 @@ async def run(args):
         async def pair(index, scheduled):
             scheduler_lags.append(max(0, time.perf_counter() - scheduled) * 1000)
             template = TEMPLATES[index % len(TEMPLATES)]
-            text = f"Тест {index}. " + template.format(i=index)
+            text_index = index if args.text_mode == "unique" else index % len(TEMPLATES)
+            text = f"Тест {text_index}. " + template.format(i=text_index)
             payload_id = f"load-{run_id}-{index}"
             masked = await post(text, payload_id)
             if masked is None:
@@ -123,7 +124,8 @@ async def run(args):
             await asyncio.gather(*pending)
         elapsed = time.perf_counter() - start
     report = {"method": "open-loop pair arrivals at rate/2; restore follows mask; no retries",
-              "data": "six rotating synthetic templates with unique text and IDs; NOT organizer corpus",
+              "data": "six rotating synthetic templates; NOT organizer corpus",
+              "text_mode": args.text_mode, "unique_payload_ids": True,
               "server_url": args.url, "target_http_rps": args.rate, "target_seconds": args.seconds,
               "max_inflight_pairs": args.max_inflight, "abort_reason": abort_reason,
               "injection_seconds": round(injection_seconds, 3), "total_seconds_with_drain": round(elapsed, 3),
@@ -145,6 +147,7 @@ if __name__ == "__main__":
     parser.add_argument("--rate", type=float, required=True)
     parser.add_argument("--seconds", type=float, default=20)
     parser.add_argument("--max-inflight", type=int, default=256)
+    parser.add_argument("--text-mode", choices=["unique", "repeated"], default="unique")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     if args.rate <= 0 or args.seconds <= 0 or args.max_inflight < 1:
