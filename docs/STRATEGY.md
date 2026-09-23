@@ -52,13 +52,14 @@
 
 ## Сдача
 
-До **23 сентября 2026, 23:59 МСК**. Тринадцать отправок на проверку выполнены;
-лучший скор — **9960 баллов** (попытки 6, 7, 10, 11, 12, 13 и 15).
+До **23 сентября 2026, 23:59 МСК**. Восемнадцать отправок на проверку выполнены;
+лучший скор — **9990 баллов** (попытка 18), 0 BLOCKER, 0 CRITICAL, 2 MAJOR.
 Доступность попыток не отменяет квоты бесплатного хостинга. Подробности в
 [OFFICIAL_CHECKS.md](OFFICIAL_CHECKS.md), [OFFICIAL_CHECKS_2.md](OFFICIAL_CHECKS_2.md)
 и [OFFICIAL_CHECKS_3.md](OFFICIAL_CHECKS_3.md), [OFFICIAL_CHECKS_4.md](OFFICIAL_CHECKS_4.md),
 [OFFICIAL_CHECKS_5_TO_9.md](OFFICIAL_CHECKS_5_TO_9.md),
-[OFFICIAL_CHECKS_10_TO_13.md](OFFICIAL_CHECKS_10_TO_13.md).
+[OFFICIAL_CHECKS_10_TO_13.md](OFFICIAL_CHECKS_10_TO_13.md),
+[OFFICIAL_CHECKS_16_TO_18.md](OFFICIAL_CHECKS_16_TO_18.md).
 Обязательны ZIP исходников (до 2 ГБ), презентация (до 50 МБ), VCS URL и deployed URL.
 Скринкаст до 3 минут и 1 ГБ, описание до 1000 символов. Проверка архива и финальная сдача —
 разные страницы. Финальная заявка обновлена 23 сентября: лучший ZIP, презентация,

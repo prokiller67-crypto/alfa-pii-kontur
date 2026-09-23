@@ -5,7 +5,7 @@
 - API: `https://alfa-pii-kontur.vercel.app/process`, метод POST.
 - Vercel project: `alfa-pii-kontur`, план **Hobby**, регион **iad1**.
 - База: **Neon Free**, ресурс `alfa-pii-state`, регион **iad1**, принадлежит аккаунту.
-- Код API: commit `56f5cbf7082f6e418db93491527d29cfb3a6ee1c`; deployment `dpl_6ghb8ZMTCrdMMgwuyhWDQ9C86Tph`.
+- Код API: commit `9155afc878fdcb859d87dfe5b3077d17fff2d445`; deployment `dpl_EuEqcozcLtaV5jEGYNVmHE8kiQBw`.
 - Python 3.12, FastAPI, Natasha, psycopg; PostgreSQL используется через pooler.
 - API и модель выполняются на Vercel. В PostgreSQL передаются HMAC-ключ и AES-GCM ciphertext.
 
@@ -14,6 +14,16 @@
 а переменные удалены из Vercel.
 
 ## Проверено
+
+Текущая v4 (9990 баллов) после публикации восстановила 25/25 текстов:
+50/50 HTTP 200, 8.774 с, четыре параллельные цепочки. p50 полного HTTP-времени
+274 мс, p99 6105 мс, максимум 6176 мс. SLA до секунды этим не подтверждён.
+Первые две сборки v4 не смогли подключиться напрямую к Neon из-за исчерпания
+соединений; третья после освобождения соединений успешно проверила схему и
+опубликовала те же исходники. Подробности —
+[OFFICIAL_CHECKS_16_TO_18.md](OFFICIAL_CHECKS_16_TO_18.md).
+
+Далее сохранены предыдущие проверки:
 
 - Vercel завершил сборку и миграцию схемы; production alias доступен без Vercel login.
 - Внешние `/healthz` и `/readyz`: HTTP 200.
