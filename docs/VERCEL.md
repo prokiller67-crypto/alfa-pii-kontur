@@ -5,12 +5,13 @@
 - API: `https://alfa-pii-kontur.vercel.app/process`, метод POST.
 - Vercel project: `alfa-pii-kontur`, план **Hobby**, регион **iad1**.
 - База: **Neon Free**, ресурс `alfa-pii-state`, регион **iad1**, принадлежит аккаунту.
-- Код API: commit `d977002`; deployment `dpl_77ecksGEFvp43SHf2H6xTxFXk1e4`.
+- Код API: commit `fd9c7a9`; deployment `dpl_EopEUWp33LWkjAZYgzw4dnrwHTdc`.
 - Python 3.12, FastAPI, Natasha, psycopg; PostgreSQL используется через pooler.
 - API и модель выполняются на Vercel. В PostgreSQL передаются HMAC-ключ и AES-GCM ciphertext.
 
 У Neon Free нет трёхдневного срока действия. Ранее проверенный временный Upstash
-не используется опубликованным сервисом; его переменные удалены из Vercel.
+не используется опубликованным сервисом; его адаптер удалён из исходников,
+а переменные удалены из Vercel.
 
 ## Проверено
 
@@ -26,6 +27,9 @@
   `/metrics`. Все ожидаемые ответы получены; JSON —
   `artifacts/attempt-3-preflight.json`. Один ответ восстановления занял
   2.455 с от клиента, поэтому SLA 1 с по этой проверке не доказан.
+- После возврата к проверенному API и удаления Upstash публичные `/readyz`,
+  маска, восстановление, повтор и защита `/metrics` снова прошли проверку:
+  `artifacts/attempt-4-preflight.json`.
 - Ошибка валидации: 422 без исходного значения; анонимный `/metrics`: 401.
 - Авторизованные `/v1/mask` и `/v1/restore` прошли полный цикл; `/metrics` с ключом — 200,
   исходный тестовый email в метриках отсутствует.
