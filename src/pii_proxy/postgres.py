@@ -15,7 +15,7 @@ from .vault import CapacityError
 class PostgresStore:
     def __init__(self, url: str):
         self.pool = AsyncConnectionPool(
-            url, open=False, min_size=1, max_size=4, max_waiting=64, timeout=14,
+            url, open=False, min_size=1, max_size=4, max_waiting=64, timeout=5,
             max_idle=60, reconnect_timeout=5,
             kwargs={"autocommit": True, "prepare_threshold": None, "connect_timeout": 5,
                     "sslmode": "verify-full", "sslrootcert": certifi.where()},

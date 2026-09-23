@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hmac
 import ipaddress
 import json
@@ -76,7 +77,7 @@ class BodyLimit:
 
 
 def create_app(processor: Processor | None = None, *, policies: dict | None = None,
-               local_demo: bool | None = None) -> FastAPI:
+               local_demo: bool | None = None, request_timeout: float = 7.0) -> FastAPI:
     supplied = processor is not None
     local_demo = os.environ.get("PII_LOCAL_DEMO", "1") == "1" if local_demo is None else local_demo
     checker_mode = os.environ.get("PII_CHECKER_MODE", "0") == "1"
@@ -165,11 +166,14 @@ def create_app(processor: Processor | None = None, *, policies: dict | None = No
             app.state.inflight += 1
             acquired = True
             handler = app.state.processor
-            if action == "restore":
-                # Explicit API includes selected mode so the immutable policy matches the session.
-                result = await handler.restore(body.payload, body.payload_id, policy)
-            else:
-                result = await handler.process(body.payload, body.payload_id, policy, mask_only=action == "mask")
+            # The checker allows 10 seconds including transport. Bound the whole
+            # operation, including both database calls and a stale-connection retry.
+            async with asyncio.timeout(request_timeout):
+                if action == "restore":
+                    # Explicit API includes selected mode so the immutable policy matches the session.
+                    result = await handler.restore(body.payload, body.payload_id, policy)
+                else:
+                    result = await handler.process(body.payload, body.payload_id, policy, mask_only=action == "mask")
             operation, status = result["operation"], 200
             found_types = result["types"]
             for kind in result["types"]:
@@ -185,6 +189,10 @@ def create_app(processor: Processor | None = None, *, policies: dict | None = No
         except CapacityError:
             status = 429
             return JSONResponse({"error": "state_capacity_retry"}, status_code=429, headers={"Retry-After": "1"})
+        except TimeoutError:
+            status = 429
+            return JSONResponse({"error": "processing_deadline_retry"}, status_code=429,
+                                headers={"Retry-After": "1"})
         except Exception as exc:
             # Fail closed. Never fall back to sending unprocessed input; never log exception/input repr.
             status = 503
