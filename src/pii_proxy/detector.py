@@ -233,71 +233,112 @@ class Detector:
         return result
 
     def _detect_chunk(self, text: str) -> list[Span]:
-        spans: list[Span] = []
         clauses = ClauseIndex(text)
+        spans: list[Span] = []
         for kind, pattern, priority in RULES:
-            # Materialize bounded matches: regex timeout must not include Python postprocessing.
+            # Materialize matches before Python postprocessing starts its own work.
             for match in list(pattern.finditer(text, timeout=0.1)):
-                start, end = match.span("v")
-                clause = clauses.at(match.start(), end)
-                if kind in {Kind.PERSON, Kind.BIRTH_PLACE, Kind.BIRTH_DATE} and is_public_context(clause):
-                    continue
-                if kind in {Kind.ADDRESS, Kind.BIRTH_PLACE, Kind.PASSPORT_ISSUER}:
-                    value = text[start:end]
-                    boundary = NEXT_FIELD.search(value)
-                    if boundary:
-                        end = start + boundary.start()
-                    end = start + sentence_end(text[start:end])
-                    while end > start and text[end - 1] in " .,\t":
-                        end -= 1
-                if kind == Kind.PASSPORT_ISSUER:
-                    # An unlabeled date after the authority is still the passport
-                    # issue date; keeping it inside the issuer loses a required type.
-                    inline_date = regex.search(rf"(?:\bот\s+)?(?P<date>{DATE})\s*$", text[start:end], FLAGS, timeout=0.1)
-                    if inline_date and inline_date.start() > 0:
-                        date_start = start + inline_date.start("date")
-                        spans.append(Span(date_start, start + inline_date.end("date"), Kind.ISSUE_DATE, 100))
-                        end = start + len(text[start:start + inline_date.start()].rstrip(" ,\t"))
-                if kind == Kind.PERSON and any(w.lower() in NAME_STOP for w in text[start:end].split()):
-                    continue
-                if kind == Kind.PERSON and priority == 80:
-                    words = list(regex.finditer(NAME_WORD, text[start:end], FLAGS))
-                    if len(words) == 3 and not self._name_tags(words[-1][0]):
-                        end = start + words[-2].end()
-                if kind == Kind.ADDRESS:
-                    clause = text[max(0, match.start() - 60):end]
-                    if (BANK_ADDRESS.search(clause) or PUBLIC_ADDRESS.search(clause)) and not PRIVATE.search(clause):
-                        continue
-                    if not regex.search(r"\d|москв|петербург|город|улиц|ул\.|проспект|росси|г\.", text[start:end], FLAGS):
-                        continue
-                    tail = regex.search(r"\b(?:дом|д\.|квартира|кв\.)\s*\d+[а-яё]?(?:[/ -]\d+)?\s*,(?!\s*(?:кв|квартира|корп|корпус|стр|строение|д|дом|подъезд|этаж)\b)\s*", text[start:end], FLAGS)
-                    if tail:
-                        end = start + text[start:end].index(",", tail.start())
-                spans.append(Span(start, end, kind, priority))
+                spans.extend(self._rule_spans(text, clauses, match, kind, priority))
+        spans.extend(self._component_spans(text, clauses))
+        spans.extend(self._morphology_spans(text, clauses))
+        spans.extend(self._number_spans(text))
+        spans.extend(self._ner_spans(text, clauses))
+        return spans
+
+    def _rule_spans(self, text: str, clauses: ClauseIndex, match, kind: Kind, priority: int) -> list[Span]:
+        start, end = match.span("v")
+        clause = clauses.at(match.start(), end)
+        if kind in {Kind.PERSON, Kind.BIRTH_PLACE, Kind.BIRTH_DATE} and is_public_context(clause):
+            return []
+        if kind in {Kind.ADDRESS, Kind.BIRTH_PLACE, Kind.PASSPORT_ISSUER}:
+            end = self._field_end(text, start, end)
+        extra: list[Span] = []
+        if kind == Kind.PASSPORT_ISSUER:
+            end, extra = self._issuer_date(text, start, end)
+        if kind == Kind.PERSON:
+            end = self._person_end(text, start, end, priority)
+        elif kind == Kind.ADDRESS:
+            end = self._address_end(text, match.start(), start, end)
+        if end is None:
+            return extra
+        return extra + [Span(start, end, kind, priority)]
+
+    @staticmethod
+    def _field_end(text: str, start: int, end: int) -> int:
+        boundary = NEXT_FIELD.search(text[start:end])
+        if boundary:
+            end = start + boundary.start()
+        end = start + sentence_end(text[start:end])
+        return start + len(text[start:end].rstrip(" .,\t"))
+
+    @staticmethod
+    def _issuer_date(text: str, start: int, end: int) -> tuple[int, list[Span]]:
+        inline_date = regex.search(rf"(?:\bот\s+)?(?P<date>{DATE})\s*$", text[start:end], FLAGS, timeout=0.1)
+        if not inline_date or inline_date.start() == 0:
+            return end, []
+        date_span = Span(start + inline_date.start("date"), start + inline_date.end("date"), Kind.ISSUE_DATE, 100)
+        end = start + len(text[start:start + inline_date.start()].rstrip(" ,\t"))
+        return end, [date_span]
+
+    def _person_end(self, text: str, start: int, end: int, priority: int) -> int | None:
+        if any(w.lower() in NAME_STOP for w in text[start:end].split()):
+            return None
+        if priority == 80:
+            words = list(regex.finditer(NAME_WORD, text[start:end], FLAGS))
+            if len(words) == 3 and not self._name_tags(words[-1][0]):
+                return start + words[-2].end()
+        return end
+
+    @staticmethod
+    def _address_end(text: str, context_start: int, start: int, end: int) -> int | None:
+        clause = text[max(0, context_start - 60):end]
+        if (BANK_ADDRESS.search(clause) or PUBLIC_ADDRESS.search(clause)) and not PRIVATE.search(clause):
+            return None
+        if not regex.search(r"\d|москв|петербург|город|улиц|ул\.|проспект|росси|г\.", text[start:end], FLAGS):
+            return None
+        tail = regex.search(r"\b(?:дом|д\.|квартира|кв\.)\s*\d+[а-яё]?(?:[/ -]\d+)?\s*,(?!\s*(?:кв|квартира|корп|корпус|стр|строение|д|дом|подъезд|этаж)\b)\s*", text[start:end], FLAGS)
+        if tail:
+            return start + text[start:end].index(",", tail.start())
+        return end
+
+    @staticmethod
+    def _component_spans(text: str, clauses: ClauseIndex) -> list[Span]:
+        spans: list[Span] = []
         for match in COMPONENT.finditer(text, timeout=0.1):
             clause = clauses.at(match.start(), match.end())
             if not BANK_ADDRESS.search(clause):
                 start, end = match.span("v")
                 end = start + len(text[start:end].rstrip())
                 spans.append(Span(start, end, Kind.ADDRESS, 90, "component"))
+        return spans
+
+    def _morphology_end(self, text: str, words: list, index: int) -> int | None:
+        first, second = words[index:index + 2]
+        if not text[first.end():second.start()].isspace():
+            return None
+        tags_a, tags_b = self._name_tags(first[0]), self._name_tags(second[0])
+        if not (("Name" in tags_a and tags_b & {"Surn", "Patr"}) or ("Surn" in tags_a and "Name" in tags_b)):
+            return None
+        end = second.end()
+        if index + 2 < len(words) and text[end:words[index + 2].start()].isspace():
+            third = words[index + 2]
+            if self._name_tags(third[0]) & {"Patr", "Surn"}:
+                end = third.end()
+        return end
+
+    def _morphology_spans(self, text: str, clauses: ClauseIndex) -> list[Span]:
+        spans: list[Span] = []
         words = list(regex.finditer(NAME_WORD, text, FLAGS))
-        for i in range(len(words) - 1):
-            first, second = words[i:i + 2]
-            if not text[first.end():second.start()].isspace():
-                continue
-            tags_a, tags_b = self._name_tags(first[0]), self._name_tags(second[0])
-            if not (("Name" in tags_a and tags_b & {"Surn", "Patr"}) or ("Surn" in tags_a and "Name" in tags_b)):
-                continue
-            end = second.end()
-            if i + 2 < len(words) and text[end:words[i + 2].start()].isspace():
-                third = words[i + 2]
-                if self._name_tags(third[0]) & {"Patr", "Surn"}:
-                    end = third.end()
-            clause = clauses.at(first.start(), end)
-            if not is_public_context(clause):
-                spans.append(Span(first.start(), end, Kind.PERSON, 75, "morphology"))
-        for match in PHONE.finditer(text, timeout=0.1):
-            spans.append(Span(*match.span("v"), Kind.PHONE, 75))
+        for index in range(len(words) - 1):
+            start = words[index].start()
+            end = self._morphology_end(text, words, index)
+            if end is not None and not is_public_context(clauses.at(start, end)):
+                spans.append(Span(start, end, Kind.PERSON, 75, "morphology"))
+        return spans
+
+    @staticmethod
+    def _number_spans(text: str) -> list[Span]:
+        spans = [Span(*match.span("v"), Kind.PHONE, 75) for match in PHONE.finditer(text, timeout=0.1)]
         for match in CARD.finditer(text, timeout=0.1):
             digits = regex.sub(r"\D", "", match.group("v"))
             before = text[max(0, match.start() - 40):match.start()]
@@ -306,19 +347,30 @@ class Detector:
         for match in INN.finditer(text, timeout=0.1):
             if inn_valid(match.group("v")):
                 spans.append(Span(*match.span("v"), Kind.INN, 65))
-        if self.use_ner and regex.search(r"[а-яё]{2}", text, FLAGS):
-            with self._lock:
-                doc = self._doc(text)
-                doc.segment(self._segmenter)
-                doc.tag_ner(self._ner)
-            for entity in doc.spans:
-                # Clause context avoids allowing a public name to exempt a customer's name elsewhere.
-                clause = clauses.at(entity.start, entity.stop)
-                if entity.type == "PER":
-                    if is_public_context(clause):
-                        continue
-                    spans.append(Span(entity.start, entity.stop, Kind.PERSON, 60, "ner"))
-                elif entity.type == "LOC" and PRIVATE.search(clause) and not BANK_ADDRESS.search(clause):
-                    if regex.search(r"\b(?:живу|прожива[а-яё]*|адрес)\b", clause, FLAGS):
-                        spans.append(Span(entity.start, entity.stop, Kind.ADDRESS, 50, "ner"))
+        return spans
+
+    @staticmethod
+    def _ner_kind(entity_type: str, clause: str) -> Kind | None:
+        if entity_type == "PER":
+            if not is_public_context(clause):
+                return Kind.PERSON
+        elif entity_type == "LOC" and PRIVATE.search(clause) and not BANK_ADDRESS.search(clause):
+            if regex.search(r"\b(?:живу|прожива[а-яё]*|адрес)\b", clause, FLAGS):
+                return Kind.ADDRESS
+        return None
+
+    def _ner_spans(self, text: str, clauses: ClauseIndex) -> list[Span]:
+        if not self.use_ner or not regex.search(r"[а-яё]{2}", text, FLAGS):
+            return []
+        with self._lock:
+            doc = self._doc(text)
+            doc.segment(self._segmenter)
+            doc.tag_ner(self._ner)
+        spans: list[Span] = []
+        for entity in doc.spans:
+            clause = clauses.at(entity.start, entity.stop)
+            kind = self._ner_kind(entity.type, clause)
+            if kind is not None:
+                priority = 60 if kind == Kind.PERSON else 50
+                spans.append(Span(entity.start, entity.stop, kind, priority, "ner"))
         return spans
