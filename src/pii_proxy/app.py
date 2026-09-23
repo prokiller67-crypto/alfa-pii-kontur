@@ -73,7 +73,7 @@ class BodyLimit:
                 from starlette.exceptions import HTTPException
                 raise HTTPException(413, "request_too_large")
             return message
-        await self.app(scope, limited_receive, send)
+        return await self.app(scope, limited_receive, send)
 
 
 class AccessControl:
