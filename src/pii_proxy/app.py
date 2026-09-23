@@ -76,178 +76,232 @@ class BodyLimit:
         await self.app(scope, limited_receive, send)
 
 
-def create_app(processor: Processor | None = None, *, policies: dict | None = None,
-               local_demo: bool | None = None, request_timeout: float = 7.0) -> FastAPI:
-    supplied = processor is not None
-    local_demo = os.environ.get("PII_LOCAL_DEMO", "1") == "1" if local_demo is None else local_demo
-    checker_mode = os.environ.get("PII_CHECKER_MODE", "0") == "1"
-    allowed_ips = [ipaddress.ip_network(v.strip()) for v in os.environ.get("PII_CHECKER_CIDRS", "").split(",") if v.strip()]
-    configured = load_policies() if policies is None else policies
-    registry = CollectorRegistry()
-    requests = Counter("pii_requests_total", "Requests by bounded outcome", ["operation", "status"], registry=registry)
-    latency = Histogram("pii_request_seconds", "End-to-end handler time", ["operation"], registry=registry,
-                        buckets=(.001, .005, .01, .025, .05, .1, .25, .5, 1, 2, 5, 10))
-    entities = Counter("pii_entity_types_total", "Detected entity types, without values", ["type"], registry=registry)
-    chars = Counter("pii_input_characters_total", "Characters processed; NOT an exact token count", registry=registry)
+class AccessControl:
+    def __init__(self, policies: dict | None, local_demo: bool | None):
+        self.local_demo = os.environ.get("PII_LOCAL_DEMO", "1") == "1" if local_demo is None else local_demo
+        self.checker_mode = os.environ.get("PII_CHECKER_MODE", "0") == "1"
+        self.allowed_ips = [ipaddress.ip_network(v.strip()) for v in os.environ.get("PII_CHECKER_CIDRS", "").split(",") if v.strip()]
+        self.configured = load_policies() if policies is None else policies
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        if not supplied:
-            logger.setLevel(logging.INFO)
-            if not logger.handlers:
-                handler = logging.StreamHandler()
-                handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
-                logger.addHandler(handler)
-            logger.propagate = False
-        if app.state.processor is None:
-            redis_url = os.environ.get("PII_REDIS_URL")
-            database_url = os.environ.get("DATABASE_URL")
-            if redis_url:
-                store = RedisStore(redis_url)
-            elif database_url:
-                from .postgres import PostgresStore
-                store = PostgresStore(database_url)
-            elif os.environ.get("VERCEL"):
-                raise ValueError("shared_store_required_on_vercel")
-            else:
-                store = MemoryStore()
-            vault = Vault(store, load_key(required=bool(redis_url or database_url) or checker_mode),
-                          ttl=int(os.environ.get("PII_TTL_SECONDS", "1800")))
-            detector = Detector(use_ner=os.environ.get("PII_NER", "1") == "1")
-            app.state.processor = Processor(detector, vault)
-        yield
-        if not supplied:
-            await app.state.processor.vault.store.close()
+    def _system_policy(self, system: str, key: str) -> Policy:
+        entry = self.configured.get(system)
+        if not entry or not entry[1] or not hmac.compare_digest(key, entry[1]):
+            raise ServiceError(401, "unauthorized")
+        if not entry[0].enabled:
+            raise ServiceError(403, "system_disabled")
+        return entry[0]
 
-    app = FastAPI(title="Alfa PII Proxy", version="0.1.0", lifespan=lifespan)
-    app.add_middleware(BodyLimit)
-    app.state.processor = processor
-    app.state.inflight = 0
-
-    @app.exception_handler(RequestValidationError)
-    async def validation_error(_request: Request, _error: RequestValidationError):
-        # FastAPI's default response can echo the original input; do not expose it.
-        return JSONResponse({"error": "invalid_request"}, status_code=422)
-
-    def authorize(request: Request) -> Policy:
-        host = request.client.host if request.client else ""
+    def authorize(self, request: Request) -> Policy:
         system = request.headers.get("x-system-id", "")
         if system:
-            entry = configured.get(system)
-            key = request.headers.get("x-api-key", "")
-            if not entry or not entry[1] or not hmac.compare_digest(key, entry[1]):
-                raise ServiceError(401, "unauthorized")
-            if not entry[0].enabled:
-                raise ServiceError(403, "system_disabled")
-            return entry[0]
-        if local_demo and host in {"127.0.0.1", "::1", "testclient"}:
+            return self._system_policy(system, request.headers.get("x-api-key", ""))
+        host = request.client.host if request.client else ""
+        if self.local_demo and host in {"127.0.0.1", "::1", "testclient"}:
             # Reverse-proxied traffic must not become an anonymous local client.
             if "forwarded" not in request.headers and "x-forwarded-for" not in request.headers:
                 return Policy("local-demo")
-        if checker_mode and request.url.path == "/process":
-            if allowed_ips and not any(ipaddress.ip_address(host) in network for network in allowed_ips):
-                raise ServiceError(403, "checker_ip_denied")
-            return Policy("checker", mode=os.environ.get("PII_CHECKER_MASK", "partial"))
+        if self.checker_mode and request.url.path == "/process":
+            return self._checker_policy(host)
         raise ServiceError(401, "unauthorized")
 
-    async def execute(request: Request, body: ProcessRequest, action: str, mode: str | None = None):
+    def _checker_policy(self, host: str) -> Policy:
+        if self.allowed_ips and not any(ipaddress.ip_address(host) in network for network in self.allowed_ips):
+            raise ServiceError(403, "checker_ip_denied")
+        return Policy("checker", mode=os.environ.get("PII_CHECKER_MASK", "partial"))
+
+
+class Telemetry:
+    def __init__(self):
+        self.registry = CollectorRegistry()
+        self.requests = Counter("pii_requests_total", "Requests by bounded outcome", ["operation", "status"], registry=self.registry)
+        self.latency = Histogram("pii_request_seconds", "End-to-end handler time", ["operation"], registry=self.registry,
+                                 buckets=(.001, .005, .01, .025, .05, .1, .25, .5, 1, 2, 5, 10))
+        self.entities = Counter("pii_entity_types_total", "Detected entity types, without values", ["type"], registry=self.registry)
+        self.chars = Counter("pii_input_characters_total", "Characters processed; NOT an exact token count", registry=self.registry)
+
+    def add_result(self, kinds: list[str], length: int) -> None:
+        for kind in kinds:
+            self.entities.labels(kind).inc()
+        self.chars.inc(length)
+
+    def observe(self, operation: str, status: int, kinds: list[str], elapsed: float) -> None:
+        self.requests.labels(operation, str(status)).inc()
+        self.latency.labels(operation).observe(elapsed)
+        logger.info("pii_request operation=%s status=%s types=%s duration_ms=%.2f",
+                    operation, status, ",".join(kinds), elapsed * 1000)
+
+    def scrape(self) -> bytes:
+        registry = self.registry
+        if os.environ.get("PROMETHEUS_MULTIPROC_DIR"):
+            registry = CollectorRegistry()
+            multiprocess.MultiProcessCollector(registry)
+        return generate_latest(registry)
+
+
+def error_response(status: int, code: str) -> JSONResponse:
+    headers = {"Retry-After": "1"} if status in {429, 503} else None
+    return JSONResponse({"error": code}, status_code=status, headers=headers)
+
+
+class RequestExecutor:
+    def __init__(self, app: FastAPI, request_timeout: float):
+        self.app, self.request_timeout = app, request_timeout
+
+    def _policy(self, request: Request, mode: str | None) -> Policy:
+        policy = self.app.state.access.authorize(request)
+        if mode is not None and mode != policy.mode:
+            if policy.tenant != "local-demo":
+                raise ServiceError(403, "mode_is_configured_by_system_policy")
+            policy = replace(policy, mode=mode)
+        return policy
+
+    async def _call(self, body: ProcessRequest, action: str, policy: Policy) -> dict:
+        handler = self.app.state.processor
+        if action == "restore":
+            return await handler.restore(body.payload, body.payload_id, policy)
+        return await handler.process(body.payload, body.payload_id, policy, mask_only=action == "mask")
+
+    async def execute(self, request: Request, body: ProcessRequest, action: str, mode: str | None = None):
         start = time.perf_counter()
         operation, status = "rejected", 500
         acquired = False
         found_types: list[str] = []
         try:
-            policy = authorize(request)
-            if mode is not None and mode != policy.mode:
-                if policy.tenant != "local-demo":
-                    raise ServiceError(403, "mode_is_configured_by_system_policy")
-                policy = replace(policy, mode=mode)
-            if app.state.inflight >= 64:
+            policy = self._policy(request, mode)
+            if self.app.state.inflight >= 64:
                 raise ServiceError(429, "busy_retry")
-            app.state.inflight += 1
+            self.app.state.inflight += 1
             acquired = True
-            handler = app.state.processor
-            # The checker allows 10 seconds including transport. Bound the whole
-            # operation, including both database calls and a stale-connection retry.
-            async with asyncio.timeout(request_timeout):
-                if action == "restore":
-                    # Explicit API includes selected mode so the immutable policy matches the session.
-                    result = await handler.restore(body.payload, body.payload_id, policy)
-                else:
-                    result = await handler.process(body.payload, body.payload_id, policy, mask_only=action == "mask")
+            # Includes both database calls and a stale-connection retry.
+            async with asyncio.timeout(self.request_timeout):
+                result = await self._call(body, action, policy)
             operation, status = result["operation"], 200
             found_types = result["types"]
-            for kind in result["types"]:
-                entities.labels(kind).inc()
-            chars.inc(len(body.payload))
+            self.app.state.telemetry.add_result(found_types, len(body.payload))
             if action == "process":
                 return JSONResponse({"result": result["result"]})
             return JSONResponse({**result, "latency_ms": round((time.perf_counter() - start) * 1000, 2)})
         except ServiceError as exc:
             status = exc.status
-            return JSONResponse({"error": exc.code}, status_code=status,
-                                headers={"Retry-After": "1"} if status in {429, 503} else None)
+            return error_response(status, exc.code)
         except CapacityError:
             status = 429
-            return JSONResponse({"error": "state_capacity_retry"}, status_code=429, headers={"Retry-After": "1"})
+            return error_response(status, "state_capacity_retry")
         except TimeoutError:
             status = 429
-            return JSONResponse({"error": "processing_deadline_retry"}, status_code=429,
-                                headers={"Retry-After": "1"})
+            return error_response(status, "processing_deadline_retry")
         except Exception as exc:
-            # Fail closed. Never fall back to sending unprocessed input; never log exception/input repr.
+            # Fail closed. Never return unprocessed input or log exception/input repr.
             status = 503
             logger.error("pii_error exception_type=%s", type(exc).__name__)
-            return JSONResponse({"error": "processing_unavailable"}, status_code=503, headers={"Retry-After": "1"})
+            return error_response(status, "processing_unavailable")
         finally:
             if acquired:
-                app.state.inflight -= 1
-            elapsed = time.perf_counter() - start
-            requests.labels(operation, str(status)).inc()
-            latency.labels(operation).observe(elapsed)
-            logger.info("pii_request operation=%s status=%s types=%s duration_ms=%.2f",
-                        operation, status, ",".join(found_types), elapsed * 1000)
+                self.app.state.inflight -= 1
+            self.app.state.telemetry.observe(operation, status, found_types, time.perf_counter() - start)
 
-    @app.post("/process", response_model=ProcessResponse)
-    async def process(body: ProcessRequest, request: Request):
-        return await execute(request, body, "process")
 
-    @app.post("/v1/mask")
-    async def mask_route(body: MaskRequest, request: Request):
-        return await execute(request, body, "mask", body.mode)
+def _configure_audit_logger() -> None:
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+        logger.addHandler(handler)
+    logger.propagate = False
 
-    @app.post("/v1/restore")
-    async def restore_route(body: MaskRequest, request: Request):
-        return await execute(request, body, "restore", body.mode)
 
-    @app.get("/healthz")
-    async def health():
-        return {"status": "ok"}
+def _create_store(redis_url: str | None, database_url: str | None):
+    if redis_url:
+        return RedisStore(redis_url)
+    if database_url:
+        from .postgres import PostgresStore
+        return PostgresStore(database_url)
+    if os.environ.get("VERCEL"):
+        raise ValueError("shared_store_required_on_vercel")
+    return MemoryStore()
 
-    @app.get("/readyz")
-    async def ready():
-        try:
-            if app.state.processor and await app.state.processor.vault.store.ping():
-                return {"status": "ready"}
-        except Exception as exc:
-            logger.warning("pii_ready_failure exception_type=%s", type(exc).__name__)
-        return JSONResponse({"status": "not_ready"}, status_code=503)
 
-    @app.get("/metrics")
-    async def metrics(request: Request):
-        try:
-            authorize(request)
-        except ServiceError as exc:
-            return JSONResponse({"error": exc.code}, status_code=exc.status)
-        scrape_registry = registry
-        if os.environ.get("PROMETHEUS_MULTIPROC_DIR"):
-            scrape_registry = CollectorRegistry()
-            multiprocess.MultiProcessCollector(scrape_registry)
-        return Response(generate_latest(scrape_registry), media_type="text/plain; version=0.0.4")
+def _create_processor(checker_mode: bool) -> Processor:
+    redis_url, database_url = os.environ.get("PII_REDIS_URL"), os.environ.get("DATABASE_URL")
+    store = _create_store(redis_url, database_url)
+    vault = Vault(store, load_key(required=bool(redis_url or database_url) or checker_mode),
+                  ttl=int(os.environ.get("PII_TTL_SECONDS", "1800")))
+    detector = Detector(use_ner=os.environ.get("PII_NER", "1") == "1")
+    return Processor(detector, vault)
 
-    @app.get("/", include_in_schema=False)
-    async def index():
-        return FileResponse(Path(__file__).parent / "static" / "index.html")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if not app.state.supplied:
+        _configure_audit_logger()
+    if app.state.processor is None:
+        app.state.processor = _create_processor(app.state.access.checker_mode)
+    yield
+    if not app.state.supplied:
+        await app.state.processor.vault.store.close()
+
+
+async def validation_error(_request: Request, _error: RequestValidationError):
+    # Do not echo the original input in validation responses.
+    return JSONResponse({"error": "invalid_request"}, status_code=422)
+
+
+async def process(body: ProcessRequest, request: Request):
+    return await request.app.state.executor.execute(request, body, "process")
+
+
+async def mask_route(body: MaskRequest, request: Request):
+    return await request.app.state.executor.execute(request, body, "mask", body.mode)
+
+
+async def restore_route(body: MaskRequest, request: Request):
+    return await request.app.state.executor.execute(request, body, "restore", body.mode)
+
+
+async def health():
+    return {"status": "ok"}
+
+
+async def ready(request: Request):
+    try:
+        processor = request.app.state.processor
+        if processor and await processor.vault.store.ping():
+            return {"status": "ready"}
+    except Exception as exc:
+        logger.warning("pii_ready_failure exception_type=%s", type(exc).__name__)
+    return JSONResponse({"status": "not_ready"}, status_code=503)
+
+
+async def metrics(request: Request):
+    try:
+        request.app.state.access.authorize(request)
+    except ServiceError as exc:
+        return JSONResponse({"error": exc.code}, status_code=exc.status)
+    return Response(request.app.state.telemetry.scrape(), media_type="text/plain; version=0.0.4")
+
+
+async def index():
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
+
+
+def create_app(processor: Processor | None = None, *, policies: dict | None = None,
+               local_demo: bool | None = None, request_timeout: float = 7.0) -> FastAPI:
+    app = FastAPI(title="Alfa PII Proxy", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(BodyLimit)
+    app.state.processor = processor
+    app.state.supplied = processor is not None
+    app.state.inflight = 0
+    app.state.access = AccessControl(policies, local_demo)
+    app.state.telemetry = Telemetry()
+    app.state.executor = RequestExecutor(app, request_timeout)
+    app.add_exception_handler(RequestValidationError, validation_error)
+    app.add_api_route("/process", process, methods=["POST"], response_model=ProcessResponse)
+    app.add_api_route("/v1/mask", mask_route, methods=["POST"])
+    app.add_api_route("/v1/restore", restore_route, methods=["POST"])
+    app.add_api_route("/healthz", health, methods=["GET"])
+    app.add_api_route("/readyz", ready, methods=["GET"])
+    app.add_api_route("/metrics", metrics, methods=["GET"])
+    app.add_api_route("/", index, methods=["GET"], include_in_schema=False)
     return app
 
 
