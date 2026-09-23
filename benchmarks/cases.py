@@ -22,6 +22,8 @@ CASES = [
     ("passport_issue", "Дата выдачи: [[ISSUE_DATE|2008.15.07]]"),
     ("passport_authority", "Кем выдан: [[PASSPORT_ISSUER|ОВД района Сокольники города Москвы]]"),
     ("passport_authority_date", "Паспорт выдан [[PASSPORT_ISSUER|УФМС России по г. Москве]], дата выдачи: [[ISSUE_DATE|12.03.2012]]"),
+    ("passport_authority_inline_date", "Паспорт выдан [[PASSPORT_ISSUER|ОУФМС России по Новосибирской области]] [[ISSUE_DATE|10.05.2019]], код подразделения [[DEPARTMENT_CODE|540-001]]"),
+    ("birth_date_words_numeric_year", "Дата рождения: [[BIRTH_DATE|двадцать первого мая 1984 года]]."),
     ("driver", "Водительское удостоверение: [[DRIVER_LICENSE|77 01 123456]]"),
     ("driver_letters", "В/У: [[DRIVER_LICENSE|77 АА 123456]]"),
     ("address", "Мой адрес: [[ADDRESS|г. Москва, ул. Ленина, д. 10, кв. 5]]."),
