@@ -71,7 +71,8 @@ RULES: tuple[tuple[Kind, regex.Pattern, int], ...] = (
     (Kind.PASSPORT, rx(r"\bпаспорт(?:а|ом)?(?:\s+(?:рф|гражданина\s+рф))?\s*[:№=-]?\s*(?:серия\s*)?(?P<v>\d{2}\s?\d{2}\s*(?:(?:номер|№)\s*)?\d{6})(?!\d)"), 100),
     (Kind.PASSPORT, rx(r"\bсерия\s+(?P<v>\d{2}\s?\d{2}\s+номер\s+\d{6})(?!\d)"), 95),
     (Kind.PASSPORT, rx(r"\bсерия\s+(?P<v>\d{2}\s?\d{2}\s*,\s*номер\s+\d{6})(?!\d)"), 95),
-    (Kind.PASSPORT, rx(r"(?<![\d ])(?P<v>\d{4}[ \t]+\d{6})(?!\d)"), 70),
+    # A standalone document may follow prose whitespace, but not belong to a longer identifier.
+    (Kind.PASSPORT, rx(r"(?<!\w)(?<!\d[ \t]+)(?P<v>\d{4}[ \t]+\d{6})(?!\w|[ \t]+\d)"), 70),
     (Kind.DRIVER_LICENSE, rx(r"\b(?:водительск[а-яё]*\s+удостоверени[а-яё]*|в\s*/\s*у)\s*[:№=-]?\s*(?:серия\s*)?(?P<v>(?:\d{2}\s?\d{2}|\d{2}\s?[а-яёa-z]{2})\s*(?:(?:номер|№)\s*)?\d{6})(?!\d)"), 100),
     (Kind.DEPARTMENT_CODE, rx(r"\bкод\s+подразделени[а-яё]*\s*[:=-]?\s*(?P<v>\d{3}[ -]?\d{3})(?!\d)"), 100),
     (Kind.BIRTH_DATE, rx(rf"\b(?:дата\s+рождения|д\s*\.\s*р\s*\.|родил(?:ся|ась)|рожд[её]н(?:а)?|день\s+рождения)\s*[:=-]?\s*(?P<v>{DATE})"), 100),
