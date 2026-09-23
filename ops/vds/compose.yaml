@@ -1,0 +1,5 @@
+services:
+  proxy:
+    image: ${PII_IMAGE:?Set an immutable deployment image tag}
+    environment:
+      PII_WORKERS: ${PII_WORKERS:-2}

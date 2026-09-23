@@ -9,6 +9,7 @@ services:
       PII_LOCAL_DEMO: "0"
       PII_CHECKER_MODE: ${PII_CHECKER_MODE:-0}
       PII_CHECKER_MASK: ${PII_CHECKER_MASK:-partial}
+      PII_WORKERS: ${PII_WORKERS:-4}
       PII_POLICIES_FILE: /app/config/policies.json
       SUPPORT_API_KEY: ${SUPPORT_API_KEY:-}
       ANALYTICS_API_KEY: ${ANALYTICS_API_KEY:-}
