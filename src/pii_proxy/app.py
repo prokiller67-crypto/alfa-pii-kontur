@@ -193,7 +193,7 @@ class RequestExecutor:
         except Exception as exc:
             # Fail closed. Never return unprocessed input or log exception/input repr.
             status = 503
-            logger.error("pii_error exception_type=%s", type(exc).__name__)
+            logger.error("pii_error exception_type=%s", type(exc).__name__, exc_info=False)
             return error_response(status, "processing_unavailable")
         finally:
             if acquired:
@@ -270,7 +270,7 @@ async def ready(request: Request):
         if processor and await processor.vault.store.ping():
             return {"status": "ready"}
     except Exception as exc:
-        logger.warning("pii_ready_failure exception_type=%s", type(exc).__name__)
+        logger.warning("pii_ready_failure exception_type=%s", type(exc).__name__, exc_info=False)
     return JSONResponse({"status": "not_ready"}, status_code=503)
 
 
