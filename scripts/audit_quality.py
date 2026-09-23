@@ -71,8 +71,9 @@ async def audit(args):
                     public["exact_restore"] += restored == text
                     if result != gold_mask or restored != text:
                         public["failed_cases"] += 1
-                except (aiohttp.ClientError, TimeoutError, ValueError):
+                except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
                     public["transport_error"] += 1
+                    errors.append({"case": name, "public_transport_error": type(exc).__name__})
     report = {"dataset": "assistant-labelled synthetic audit; not human-independent or organizer accuracy",
               "split": args.split, "dataset_sha256": dataset_hash, "cases": len(cases),
               "exact_span": score(counts), "exact_documents": counts["exact_documents"],
