@@ -15,7 +15,7 @@ from .vault import CapacityError
 class PostgresStore:
     def __init__(self, url: str):
         self.pool = AsyncConnectionPool(
-            url, open=False, min_size=1, max_size=4, max_waiting=64, timeout=3,
+            url, open=False, min_size=1, max_size=4, max_waiting=64, timeout=14,
             max_idle=60, reconnect_timeout=5,
             kwargs={"autocommit": True, "prepare_threshold": None, "connect_timeout": 5,
                     "sslmode": "verify-full", "sslrootcert": certifi.where()},
@@ -25,12 +25,28 @@ class PostgresStore:
         self._next_cleanup = 0.0
 
     async def _query(self, query: str, params: tuple = ()):
+        if not self._opened:
+            async with self._lock:
+                if not self._opened:
+                    await self.pool.open()
+                    self._opened = True
+        for attempt in range(2):
+            try:
+                return await self._run_query(query, params)
+            except (PoolTimeout, TooManyRequests):
+                raise CapacityError from None
+            except psycopg.OperationalError:
+                # Neon may suspend while a Vercel instance still holds a pooled
+                # connection. The pool discards it; the next checkout reconnects.
+                if attempt:
+                    raise
+            except psycopg.Error as exc:
+                if exc.sqlstate and exc.sqlstate.startswith("53"):
+                    raise CapacityError from None
+                raise
+
+    async def _run_query(self, query: str, params: tuple):
         try:
-            if not self._opened:
-                async with self._lock:
-                    if not self._opened:
-                        await self.pool.open()
-                        self._opened = True
             async with self.pool.connection() as conn:
                 if time.monotonic() >= self._next_cleanup:
                     self._next_cleanup = time.monotonic() + 15
@@ -42,11 +58,8 @@ class PostgresStore:
                     """)
                 cursor = await conn.execute(query, params)
                 return await cursor.fetchone()
-        except (PoolTimeout, TooManyRequests):
-            raise CapacityError from None
-        except psycopg.Error as exc:
-            if exc.sqlstate and exc.sqlstate.startswith("53"):
-                raise CapacityError from None
+        except psycopg.OperationalError:
+            self._next_cleanup = 0.0
             raise
 
     async def get(self, key: str) -> bytes | None:
