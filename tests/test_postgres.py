@@ -45,3 +45,32 @@ async def test_postgres_atomicity_encryption_expiry_and_cross_instance_restore()
                                    ([vaults[0].key(policy.tenant, p) for p in (payload_id, expiry_id)],))
         for store in stores:
             await store.close()
+
+
+@pytest.mark.skipif(not os.environ.get("PII_TEST_POSTGRES_URL"), reason="requires isolated PostgreSQL test database")
+async def test_cleanup_skips_expired_record_locked_by_another_worker():
+    store = PostgresStore(os.environ["PII_TEST_POSTGRES_URL"])
+    key = "sql-cleanup-lock-" + str(uuid.uuid4())
+    try:
+        await store.pool.open()
+        store._opened = True
+        async with store.pool.connection() as blocker:
+            await blocker.execute(
+                "INSERT INTO pii_state (key, ciphertext, expires_at) VALUES (%s, %s, '1970-01-01')",
+                (key, b"synthetic-expired-test-record"),
+            )
+            async with blocker.transaction():
+                await blocker.execute("SELECT key FROM pii_state WHERE key = %s FOR UPDATE", (key,))
+                # An unrelated lookup must finish while this expired row is locked.
+                async with asyncio.timeout(3):
+                    assert await store.get(key + "-missing") is None
+            store._next_cleanup = 0
+            assert await store.get(key) is None
+            async with store.pool.connection() as conn:
+                cursor = await conn.execute("SELECT key FROM pii_state WHERE key = %s", (key,))
+                assert await cursor.fetchone() is None
+    finally:
+        if store._opened:
+            async with store.pool.connection() as conn:
+                await conn.execute("DELETE FROM pii_state WHERE key = %s", (key,))
+        await store.close()

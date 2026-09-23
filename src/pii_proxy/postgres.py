@@ -24,12 +24,15 @@ class PostgresStore:
         self._lock = asyncio.Lock()
         self._next_cleanup = 0.0
 
-    async def _query(self, query: str, params: tuple = ()):
+    async def _open_pool(self) -> None:
         if not self._opened:
             async with self._lock:
                 if not self._opened:
                     await self.pool.open()
                     self._opened = True
+
+    async def _query(self, query: str, params: tuple = ()):
+        await self._open_pool()
         for attempt in range(2):
             try:
                 return await self._run_query(query, params)
@@ -50,10 +53,12 @@ class PostgresStore:
             async with self.pool.connection() as conn:
                 if time.monotonic() >= self._next_cleanup:
                     self._next_cleanup = time.monotonic() + 15
+                    # Other instances may be cleaning the same expired records.
+                    # Skip their locks so maintenance cannot block a live lookup.
                     await conn.execute("""
                         DELETE FROM pii_state WHERE key IN (
                             SELECT key FROM pii_state WHERE expires_at <= clock_timestamp()
-                            ORDER BY expires_at LIMIT 2000
+                            ORDER BY expires_at LIMIT 2000 FOR UPDATE SKIP LOCKED
                         )
                     """)
                 cursor = await conn.execute(query, params)
