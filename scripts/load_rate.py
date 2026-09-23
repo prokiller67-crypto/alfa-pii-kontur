@@ -45,6 +45,7 @@ async def run(args):
     pending = set()
     abort_reason = None
     consecutive_errors = 0
+    warmup = None
     start = time.perf_counter()
     deadline = start + args.seconds
     connector = aiohttp.TCPConnector(limit=args.max_inflight * 2,
@@ -100,6 +101,19 @@ async def run(args):
             elif restored is not None:
                 counters["wrong_restore"] += 1
 
+        if args.warmup_pairs:
+            await asyncio.gather(*(pair(i, time.perf_counter()) for i in range(args.warmup_pairs)))
+            warmup = {"pairs": args.warmup_pairs, "counters": dict(counters),
+                      "statuses": dict(statuses), "seconds": time.perf_counter() - start}
+            if counters["exact_pairs"] != args.warmup_pairs:
+                abort_reason = "warmup_failed"
+            counters.clear()
+            statuses.clear()
+            latencies.clear()
+            scheduler_lags.clear()
+            buckets.clear()
+            start = time.perf_counter()
+            deadline = start + args.seconds
         scheduled_pairs = math.floor(args.rate * args.seconds / 2)
         for index in range(scheduled_pairs):
             scheduled = start + index * 2 / args.rate
@@ -126,6 +140,7 @@ async def run(args):
     report = {"method": "open-loop pair arrivals at rate/2; restore follows mask; no retries",
               "data": "six rotating synthetic templates; NOT organizer corpus",
               "text_mode": args.text_mode, "unique_payload_ids": True,
+              "warmup": warmup,
               "server_url": args.url, "target_http_rps": args.rate, "target_seconds": args.seconds,
               "max_inflight_pairs": args.max_inflight, "abort_reason": abort_reason,
               "injection_seconds": round(injection_seconds, 3), "total_seconds_with_drain": round(elapsed, 3),
@@ -148,10 +163,13 @@ if __name__ == "__main__":
     parser.add_argument("--seconds", type=float, default=20)
     parser.add_argument("--max-inflight", type=int, default=256)
     parser.add_argument("--text-mode", choices=["unique", "repeated"], default="unique")
+    parser.add_argument("--warmup-pairs", type=int, default=0)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     if args.rate <= 0 or args.seconds <= 0 or args.max_inflight < 1:
         parser.error("rate, seconds and max-inflight must be positive")
+    if not 0 <= args.warmup_pairs <= 128:
+        parser.error("warmup-pairs must be between 0 and 128")
     try:
         import uvloop
     except ImportError:

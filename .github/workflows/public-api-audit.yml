@@ -15,6 +15,12 @@ on:
         required: true
         default: unique
         options: [unique, repeated]
+      warmup_pairs:
+        description: Concurrent warmup pairs before measurement (recorded separately)
+        type: choice
+        required: true
+        default: '0'
+        options: ['0', '128']
 
 permissions:
   contents: read
@@ -32,6 +38,7 @@ jobs:
       OMP_NUM_THREADS: '1'
       AUDIT_RATE: ${{ inputs.rate }}
       TEXT_MODE: ${{ inputs.text_mode }}
+      WARMUP_PAIRS: ${{ inputs.warmup_pairs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -51,6 +58,7 @@ jobs:
           uv run python scripts/load_rate.py --url https://195.209.210.68
           --rate "$AUDIT_RATE" --seconds 300 --max-inflight 1024
           --text-mode "$TEXT_MODE"
+          --warmup-pairs "$WARMUP_PAIRS"
           --output artifacts/load.json
       - name: Preserve results including unsuccessful runs
         if: always()
