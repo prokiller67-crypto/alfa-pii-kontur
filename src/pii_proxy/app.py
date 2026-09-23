@@ -236,9 +236,11 @@ async def lifespan(app: FastAPI):
         _configure_audit_logger()
     if app.state.processor is None:
         app.state.processor = _create_processor(app.state.access.checker_mode)
-    yield
-    if not app.state.supplied:
-        await app.state.processor.vault.store.close()
+    try:
+        yield
+    finally:
+        if not app.state.supplied:
+            await app.state.processor.vault.store.close()
 
 
 async def validation_error(_request: Request, _error: RequestValidationError):
