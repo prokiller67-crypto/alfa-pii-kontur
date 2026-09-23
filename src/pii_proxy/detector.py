@@ -75,7 +75,7 @@ RULES: tuple[tuple[Kind, regex.Pattern, int], ...] = (
     (Kind.PASSPORT, rx(r"(?<!\w)(?<!\d[ \t]+)(?P<v>\d{4}[ \t]+\d{6})(?!\w|[ \t]+\d)"), 70),
     (Kind.DRIVER_LICENSE, rx(r"\b(?:водительск[а-яё]*\s+удостоверени[а-яё]*|в\s*/\s*у)\s*[:№=-]?\s*(?:серия\s*)?(?P<v>(?:\d{2}\s?\d{2}|\d{2}\s?[а-яёa-z]{2})\s*(?:(?:номер|№)\s*)?\d{6})(?!\d)"), 100),
     (Kind.DEPARTMENT_CODE, rx(r"\bкод\s+подразделени[а-яё]*\s*[:=-]?\s*(?P<v>\d{3}[ -]?\d{3})(?!\d)"), 100),
-    (Kind.BIRTH_DATE, rx(rf"\b(?:дата\s+рождения|д\s*\.\s*р\s*\.|родил(?:ся|ась)|рожд[её]н(?:а)?|день\s+рождения)\s*[:=-]?\s*(?P<v>{DATE})"), 100),
+    (Kind.BIRTH_DATE, rx(rf"\b(?:дата\s+рождения(?:\s+(?:клиента|за[её]мщика|заявителя))?|д\s*\.\s*р\s*\.|родил(?:ся|ась)|рожд[её]н(?:а)?|день\s+рождения)\s*[:=-]?\s*(?P<v>{DATE})"), 100),
     (Kind.BIRTH_DATE, rx(rf"(?P<v>{DATE})\s*(?:года\s+рождения|г\s*\.\s*р\s*\.)"), 100),
     (Kind.BIRTH_DATE, rx(rf"\b(?:дата\s+рождения|родил(?:ся|ась))\s*[:=-]?\s*(?P<v>{WORD_DATE})"), 100),
     (Kind.ISSUE_DATE, rx(rf"\b(?:дата\s+выдачи|выдан(?:а|о)?(?:\s+паспорт)?)\s*[:=-]?\s*(?P<v>{DATE})"), 100),
@@ -88,15 +88,15 @@ RULES: tuple[tuple[Kind, regex.Pattern, int], ...] = (
     (Kind.ADDRESS, rx(r"\b(?:мой|моя|мо[её])\s+(?:город|страна|улица|дом|квартира|индекс)\s*[:=-]?\s*(?P<v>[^;\n,.]+)"), 85),
     (Kind.CARDHOLDER, rx(rf"\b(?:имя\s+держателя(?:\s+карты)?|держатель\s+карты|card\s*holder(?:\s+name)?)\s*[:=-]?\s*(?P<v>{NAME})"), 100),
     (Kind.PERSON, rx(rf"\b(?:фио|ф\s*\.\s*и\s*\.\s*о\s*\.|меня\s+зовут|клиент(?:ка)?|за[её]мщик|получатель)\s*[:=-]?\s*(?P<v>{NAME})"), 80),
-    (Kind.PERSON, rx(rf"\b(?:фио|клиент(?:ка)?|получатель)\s*[:=-]?\s*(?P<v>{NAME_WORD}\s+[а-яёa-z]\.\s*[а-яёa-z]\.)"), 95),
+    (Kind.PERSON, rx(rf"\b(?:фио|клиент(?:ка)?|получатель|заявитель(?:ница)?|за[её]мщик|сотрудник)\s*[:=-]?\s*(?P<v>{NAME_WORD}\s+[а-яёa-z]\.\s*[а-яёa-z]\.)"), 95),
     (Kind.INN, rx(r"\bинн\s*[:№=-]?\s*(?P<v>\d{12}|\d{10})(?!\d)"), 100),
     (Kind.CVV, rx(r"\b(?:cvv2?|cvc2?|цвв)(?:[- ]код)?\s*[:=-]?\s*(?P<v>\d{3,4})(?!\d)"), 100),
     (Kind.PIN, rx(r"\b(?:пин|pin)(?:[- ]код)?(?:\s+карты)?\s*[:=-]?\s*(?P<v>\d{4,6})(?!\d)"), 100),
-    (Kind.PHONE, rx(r"\b(?:телефон|тел\.?|мобильный|номер\s+телефона)\s*[:=-]?\s*(?P<v>\+?\d[\d ()-]{7,22}\d)(?!\d)"), 85),
+    (Kind.PHONE, rx(r"\b(?:телефон|тел\.?|мобильный|номер\s+телефона)\s*[:=-]?\s*(?P<v>\+?\d[\d\h()-]{7,22}\d)(?!\w)"), 85),
 )
-PHONE = rx(r"(?<!\d)(?P<v>(?:\+7|8)[ \t-]*\(?\d{3}\)?[ \t-]*\d{3}[ \t-]*\d{2}[ \t-]*\d{2})(?!\d)")
-CARD = rx(r"(?<!\d)(?P<v>\d(?:[ -]?\d){12,18})(?!\d)")
-INN = rx(r"(?<!\d)(?P<v>\d{12}|\d{10})(?!\d)")
+PHONE = rx(r"(?<!\w)(?P<v>(?:\+7|8)[\h-]*\(?\d{3}\)?[\h-]*\d{3}[\h-]*\d{2}[\h-]*\d{2})(?!\w)")
+CARD = rx(r"(?<!\w)(?P<v>\d(?:[\h-]?\d){12,18})(?!\w)")
+INN = rx(r"(?<!\w)(?P<v>\d{12}|\d{10})(?!\w)")
 PUBLIC = rx(r"\b(?:поэт[а-яё]*|писател[а-яё]*|роман|стихотворени[а-яё]*|историческ[а-яё]*)\b")
 PUBLIC_PERSON = rx(r"\bалександр[а-яё]*\s+(?:сергеевич[а-яё]*\s+)?пушкин[а-яё]*\b")
 PRIVATE = rx(r"\b(?:клиент[а-яё]*|за[её]мщик[а-яё]*|паспорт[а-яё]*|мои|мой|меня|фио|живу|прожива[а-яё]*|гражданств[а-яё]*)\b")
@@ -105,6 +105,8 @@ PUBLIC_ADDRESS = rx(r"\b(?:магазин[а-яё]*|ресторан[а-яё]*|�
 NAME_STOP = {"пришел", "пришёл", "обратился", "позвонил", "просит", "хочет", "указал", "не", "в", "на", "из", "и", "это", "без", "номер", "паспорт", "телефон"}
 COMPONENT = rx(r"\b(?:страна|город|улица|дом|квартира|индекс)\s*:\s*(?P<v>[^,;\n.]+)")
 ABBREVIATIONS = {"г", "ул", "д", "кв", "пр", "пер", "обл", "корп", "стр", "пос", "им", "р"}
+NAME_TAGS = frozenset({"Name", "Surn", "Patr"})
+NON_PERSON_POS = frozenset({"VERB", "INFN", "GRND", "PREP", "CONJ", "PRCL", "NPRO"})
 
 
 def sentence_end(value: str) -> int:
@@ -191,21 +193,24 @@ class Detector:
         self._morph = MorphAnalyzer()
         self._word_cache: OrderedDict[bytes, frozenset[str]] = OrderedDict()
         if use_ner:
-            from natasha import Doc, NewsEmbedding, NewsNERTagger, Segmenter
-            self._doc = Doc
-            self._segmenter = Segmenter()
+            from natasha import NewsEmbedding, NewsNERTagger
             self._ner = NewsNERTagger(NewsEmbedding())
 
     def _name_tags(self, word: str) -> frozenset[str]:
         if word.lower() in NAME_STOP | {"по", "к", "от", "для", "у", "о", "об", "со", "с", "при"}:
-            return frozenset()
+            return frozenset({"NonPerson"})
         key = hmac.digest(self._key, word.lower().encode(), hashlib.sha256)
         with self._lock:
             cached = self._word_cache.get(key)
             if cached is not None:
                 self._word_cache.move_to_end(key)
                 return cached
-        tags = frozenset(t for p in self._morph.parse(word) if p.is_known for t in ("Name", "Surn", "Patr") if t in p.tag)
+        parses = self._morph.parse(word)
+        tags = frozenset(t for p in parses if p.is_known for t in NAME_TAGS if t in p.tag)
+        best = parses[0]
+        # Do not reject unknown names or ambiguous noun/name homonyms such as Любовь.
+        if not tags and best.is_known and best.score >= .9 and best.tag.POS in NON_PERSON_POS:
+            tags = frozenset({"NonPerson"})
         with self._lock:
             self._word_cache[key] = tags
             if len(self._word_cache) > 8192:
@@ -282,11 +287,12 @@ class Detector:
         return end, [date_span]
 
     def _person_end(self, text: str, start: int, end: int, priority: int) -> int | None:
-        if any(w.lower() in NAME_STOP for w in text[start:end].split()):
-            return None
         if priority == 80:
             words = list(regex.finditer(NAME_WORD, text[start:end], FLAGS))
-            if len(words) == 3 and not self._name_tags(words[-1][0]):
+            for index, word in enumerate(words):
+                if "NonPerson" in self._name_tags(word[0]):
+                    return start + words[index - 1].end() if index else None
+            if len(words) == 3 and not self._name_tags(words[-1][0]) & NAME_TAGS:
                 return start + words[-2].end()
         return end
 
@@ -364,14 +370,20 @@ class Detector:
         if not self.use_ner or not regex.search(r"[а-яё]{2}", text, FLAGS):
             return []
         with self._lock:
-            doc = self._doc(text)
-            doc.segment(self._segmenter)
-            doc.tag_ner(self._ner)
+            # The tagger tokenizes internally and returns original character offsets.
+            # Doc.segment would repeat tokenization and build unused sentence/token objects.
+            markup = self._ner(text)
         spans: list[Span] = []
-        for entity in doc.spans:
+        for entity in markup.spans:
             clause = clauses.at(entity.start, entity.stop)
             kind = self._ner_kind(entity.type, clause)
+            if kind == Kind.PERSON and self._known_non_person(text[entity.start:entity.stop]):
+                continue
             if kind is not None:
                 priority = 60 if kind == Kind.PERSON else 50
                 spans.append(Span(entity.start, entity.stop, kind, priority, "ner"))
         return spans
+
+    def _known_non_person(self, value: str) -> bool:
+        words = regex.findall(NAME_WORD, value, FLAGS)
+        return bool(words) and all("NonPerson" in self._name_tags(word) for word in words)
