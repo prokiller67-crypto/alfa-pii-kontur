@@ -52,7 +52,7 @@ FLAGS = regex.IGNORECASE | regex.VERSION1
 MONTH = r"(?:январ[ья]|феврал[ья]|март[а]?|апрел[ья]|ма[йя]|июн[ья]|июл[ья]|август[а]?|сентябр[ья]|октябр[ья]|ноябр[ья]|декабр[ья])"
 DATE = rf"(?:\d{{1,4}}[./-]\d{{1,2}}[./-]\d{{1,4}}|\d{{1,2}}\s+{MONTH}\s+\d{{4}}(?:\s*г(?:ода|\.)?)?)"
 ORDINAL = r"(?:первого|второго|третьего|четв[её]ртого|пятого|шестого|седьмого|восьмого|девятого|десятого|одиннадцатого|двенадцатого|тринадцатого|четырнадцатого|пятнадцатого|шестнадцатого|семнадцатого|восемнадцатого|девятнадцатого|двадцатого|тридцатого|(?:двадцать|тридцать)\s+(?:первого|второго|третьего|четв[её]ртого|пятого|шестого|седьмого|восьмого|девятого))"
-WORD_DATE = rf"{ORDINAL}\s+{MONTH}\s+(?:[а-яё-]+\s+){{1,8}}года"
+WORD_DATE = rf"{ORDINAL}\s+{MONTH}\s+(?:\d{{4}}(?:\s*г(?:ода|\.)?)?|(?:[а-яё-]+\s+){{1,8}}года)"
 NAME_WORD = r"[а-яёa-z]+(?:-[а-яёa-z]+)?"
 NAME = rf"{NAME_WORD}(?:[ \t]+{NAME_WORD}){{1,2}}"
 NEXT_FIELD = regex.compile(
@@ -250,6 +250,14 @@ class Detector:
                     end = start + sentence_end(text[start:end])
                     while end > start and text[end - 1] in " .,\t":
                         end -= 1
+                if kind == Kind.PASSPORT_ISSUER:
+                    # An unlabeled date after the authority is still the passport
+                    # issue date; keeping it inside the issuer loses a required type.
+                    inline_date = regex.search(rf"(?:\bот\s+)?(?P<date>{DATE})\s*$", text[start:end], FLAGS, timeout=0.1)
+                    if inline_date and inline_date.start() > 0:
+                        date_start = start + inline_date.start("date")
+                        spans.append(Span(date_start, start + inline_date.end("date"), Kind.ISSUE_DATE, 100))
+                        end = start + len(text[start:start + inline_date.start()].rstrip(" ,\t"))
                 if kind == Kind.PERSON and any(w.lower() in NAME_STOP for w in text[start:end].split()):
                     continue
                 if kind == Kind.PERSON and priority == 80:
