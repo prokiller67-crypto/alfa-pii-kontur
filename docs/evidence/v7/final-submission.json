@@ -1,0 +1,39 @@
+{
+  "api_url": "https://195.209.210.68/process",
+  "source_tag": "submission-quality-v7",
+  "source_sha": "c877cd8ef75f98881eb0f8a571b1cd75ef2f2c84",
+  "final_source_tag": "submission-final-v7",
+  "final_source_sha": "b2ea6beb44c0e3f79af22006e27971c6bb8937d7",
+  "image_id": "sha256:7c531cbc3e60b5e9bcd8b16dde4cd53d34efe1e2b016646e3da04c6e504c5816",
+  "score": 9990,
+  "score_attempt": 25,
+  "score_attempts": [
+    24,
+    25
+  ],
+  "source_zip_filename": "alfa-pii-source-9990-v7.zip",
+  "presentation_filename": "alfa-pii-contour-presentation-quality-v7.pptx",
+  "final_submission_url": "https://reg.vibecoding-hackathon.ru/results/submitsolution",
+  "final_submission_saved_and_reloaded": true,
+  "receipt_written_at": "2026-09-23T19:30:23.050789+00:00",
+  "test_count": 167,
+  "holdout_exact_documents": 78,
+  "holdout_total_documents": 78,
+  "holdout_scope": "assistant-labelled synthetic; not the official benchmark",
+  "clean_load": {
+    "requested_rps": 100,
+    "http_success": 30000,
+    "http_attempts": 30000,
+    "exact_pairs": 15000,
+    "total_seconds": 300.303,
+    "p99_ms": 343.33,
+    "github_run": "https://github.com/prokiller67-crypto/alfa-pii-kontur/actions/runs/35906504198"
+  },
+  "load_1000_rps_passed": false,
+  "official_quality_95_percent_confirmed": false,
+  "jury_acceptance_confirmed": false,
+  "source_zip_sha256": "91c2505174e594347e71e4300c2557f9bd310dbf9a07f36e6fe062786e7fadb8",
+  "presentation_sha256": "56bf33401a9a4fedefea45707868eaa529eaa31256f6bd7079da2280471496ae",
+  "submission_verified_date": "2026-09-23",
+  "verification_method": "Final form reloaded; stored filenames, description, VCS tag and API URL read back from browser UI"
+}

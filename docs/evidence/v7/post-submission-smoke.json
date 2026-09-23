@@ -1,0 +1,26 @@
+{
+  "checked_at": "2026-09-23T19:29:42.394847+00:00",
+  "tls_verified": true,
+  "ca_bundle": "certifi",
+  "earlier_probe": "Python macOS default CA lookup failed; rerun with certifi, verification retained",
+  "/healthz": {
+    "status": 200,
+    "body": {
+      "status": "ok"
+    }
+  },
+  "/readyz": {
+    "status": 200,
+    "body": {
+      "status": "ready"
+    }
+  },
+  "contract": {
+    "statuses": [
+      200,
+      200
+    ],
+    "expected_mask": true,
+    "exact_restore": true
+  }
+}

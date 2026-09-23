@@ -29,7 +29,7 @@
 прогоны сохранены в [QUALITY_LOAD_V7.md](QUALITY_LOAD_V7.md).
 
 Попытки 24 и 25 проверки кода: SUCCESS, 9990, 0 BLOCKER, 0 CRITICAL, 2 MAJOR.
-Для итоговой подачи подготовлены:
+В итоговой форме сохранены и проверены после перезагрузки 23 сентября 2026:
 
 - `alfa-pii-source-9990-v7.zip`, SHA-256 `91c2505174e594347e71e4300c2557f9bd310dbf9a07f36e6fe062786e7fadb8`.
 - `alfa-pii-contour-presentation-quality-v7.pptx`, SHA-256 `56bf33401a9a4fedefea45707868eaa529eaa31256f6bd7079da2280471496ae`.
