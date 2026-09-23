@@ -68,7 +68,6 @@ dependencies = [
     { name = "certifi" },
     { name = "cryptography" },
     { name = "fastapi" },
-    { name = "httpx" },
     { name = "natasha" },
     { name = "numpy" },
     { name = "prometheus-client" },
@@ -83,6 +82,7 @@ dependencies = [
 dev = [
     { name = "aiohttp" },
     { name = "fakeredis" },
+    { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -93,7 +93,6 @@ requires-dist = [
     { name = "certifi", specifier = ">=2024.8.30" },
     { name = "cryptography", specifier = ">=44" },
     { name = "fastapi", specifier = ">=0.115,<1" },
-    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "natasha", specifier = "==1.6.0" },
     { name = "numpy", specifier = "<2" },
     { name = "prometheus-client", specifier = ">=0.21,<1" },
@@ -108,6 +107,7 @@ requires-dist = [
 dev = [
     { name = "aiohttp", specifier = ">=3.11,<4" },
     { name = "fakeredis", specifier = ">=2.28" },
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=0.25" },
     { name = "ruff", specifier = ">=0.11" },

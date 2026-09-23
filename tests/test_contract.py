@@ -58,7 +58,7 @@ def test_checker_starts_with_its_own_processor(monkeypatch):
     monkeypatch.setenv("PII_CHECKER_MODE", "1")
     monkeypatch.setenv("PII_MASTER_KEY", base64.urlsafe_b64encode(b"t" * 32).decode())
     monkeypatch.setenv("PII_NER", "0")
-    for name in ("PII_REDIS_URL", "DATABASE_URL", "UPSTASH_REDIS_REST_URL", "VERCEL"):
+    for name in ("PII_REDIS_URL", "DATABASE_URL", "VERCEL"):
         monkeypatch.delenv(name, raising=False)
     with TestClient(create_app(policies={}, local_demo=False)) as checker:
         assert checker.get("/readyz").json() == {"status": "ready"}
