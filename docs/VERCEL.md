@@ -5,7 +5,7 @@
 - API: `https://alfa-pii-kontur.vercel.app/process`, метод POST.
 - Vercel project: `alfa-pii-kontur`, план **Hobby**, регион **iad1**.
 - База: **Neon Free**, ресурс `alfa-pii-state`, регион **iad1**, принадлежит аккаунту.
-- Код API: commit `9c467aa`; deployment `dpl_9MYxhoCVFP1zjXU3KDUN7sJ3R3FD`.
+- Код API: commit `4de1231`; deployment `dpl_7meMEs282mpMqgHg6rWSKHApPCd7`.
 - Python 3.12, FastAPI, Natasha, psycopg; PostgreSQL используется через pooler.
 - API и модель выполняются на Vercel. В PostgreSQL передаются HMAC-ключ и AES-GCM ciphertext.
 
@@ -17,6 +17,10 @@
 - Vercel завершил сборку и миграцию схемы; production alias доступен без Vercel login.
 - Внешние `/healthz` и `/readyz`: HTTP 200.
 - `/process`: маскирование, точное обратное преобразование, одинаковый результат повторов.
+- После обновления checker-политики публичный `/process` в точности воспроизвёл
+  пример из онбординга (`Клиент И. И. И., паспорт 45** ****56`), восстановил
+  исходную строку и одинаково ответил на повтор. Проверка сохранена в
+  `artifacts/attempt-2-preflight.json`.
 - Ошибка валидации: 422 без исходного значения; анонимный `/metrics`: 401.
 - Авторизованные `/v1/mask` и `/v1/restore` прошли полный цикл; `/metrics` с ключом — 200,
   исходный тестовый email в метриках отсутствует.
