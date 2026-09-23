@@ -60,7 +60,9 @@ JSON-проверки: `artifacts/vercel-smoke.json`, `artifacts/vercel-http-smo
    `DATABASE_URL_UNPOOLED` (direct). Не добавлять connection strings в исходники.
 2. Задать только в окружении сервера `PII_MASTER_KEY`, `SUPPORT_API_KEY`, `ANALYTICS_API_KEY`;
    ключ шифрования должен совпадать между экземплярами. `PII_LOCAL_DEMO=0`.
-3. Для прогона организаторов включить `PII_CHECKER_MODE=1`, `PII_CHECKER_MASK=shape`.
+3. Для прогона организаторов включить `PII_CHECKER_MODE=1`, `PII_CHECKER_MASK=partial`.
+   Этот формат на примере из онбординга даёт `И. И. И.` / `45** ****56`;
+   точный вид остальных эталонных масок неизвестен.
    Установить `PII_POLICIES_FILE=config/policies.example.json`, `OPENBLAS_NUM_THREADS=1`, `OMP_NUM_THREADS=1`.
 4. `vercel deploy --prod` запускает `scripts/init_postgres.py` по direct-соединению.
    Миграция `migrations/001_pii_state.sql` идемпотентна и не удаляет существующие записи.

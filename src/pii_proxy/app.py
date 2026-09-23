@@ -149,7 +149,7 @@ def create_app(processor: Processor | None = None, *, policies: dict | None = No
         if checker_mode and request.url.path == "/process":
             if allowed_ips and not any(ipaddress.ip_address(host) in network for network in allowed_ips):
                 raise ServiceError(403, "checker_ip_denied")
-            return Policy("checker", mode=os.environ.get("PII_CHECKER_MASK", "shape"))
+            return Policy("checker", mode=os.environ.get("PII_CHECKER_MASK", "partial"))
         raise ServiceError(401, "unauthorized")
 
     async def execute(request: Request, body: ProcessRequest, action: str, mode: str | None = None):
@@ -223,8 +223,8 @@ def create_app(processor: Processor | None = None, *, policies: dict | None = No
         try:
             if app.state.processor and await app.state.processor.vault.store.ping():
                 return {"status": "ready"}
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("pii_ready_failure exception_type=%s", type(exc).__name__)
         return JSONResponse({"status": "not_ready"}, status_code=503)
 
     @app.get("/metrics")

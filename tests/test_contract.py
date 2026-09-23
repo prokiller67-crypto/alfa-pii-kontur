@@ -38,6 +38,21 @@ def test_official_contract_and_both_retry_directions(client):
     assert client.post("/process", json=body).json()["result"] == masked
 
 
+def test_checker_mask_matches_onboarding_example(processor, monkeypatch):
+    monkeypatch.setenv("PII_CHECKER_MODE", "1")
+    monkeypatch.delenv("PII_CHECKER_MASK", raising=False)
+    original = "Клиент Иванов Иван Иванович, паспорт 4510 123456"
+    expected = "Клиент И. И. И., паспорт 45** ****56"
+    body = {"payload": original, "payload_id": "onboarding-example"}
+    with TestClient(create_app(processor, policies={}, local_demo=False)) as checker:
+        masked = checker.post("/process", json=body)
+        assert masked.status_code == 200
+        assert masked.json() == {"result": expected}
+        restored = checker.post("/process", json={**body, "payload": expected})
+        assert restored.status_code == 200
+        assert restored.json() == {"result": original}
+
+
 @pytest.mark.parametrize("original", ["", "Ничего секретного: сумма 350 рублей.", "😀\nEmail: TEST+hello@example.org\t!", "Паспорт: серия 45 09 номер 123456\n"])
 def test_exact_roundtrip(client, original):
     body = {"payload": original, "payload_id": "exact"}
